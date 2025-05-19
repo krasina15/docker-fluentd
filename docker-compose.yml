@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  fluentd:
+    build: .
+    container_name: fluentd-logs
+    environment:
+      - SERVER_NAME=${SERVER_NAME:-default-server}
+      - ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-elasticsearch}
+      - ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
+      - ELASTICSEARCH_USER=${ELASTICSEARCH_USER:-elastic}
+      - ELASTICSEARCH_PASSWORD=${ELASTICSEARCH_PASSWORD:-changeme}
+      - ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
+      - ELASTICSEARCH_SSL_VERIFY=${ELASTICSEARCH_SSL_VERIFY:-false}
+    volumes:
+      - /apps/logs:/apps/logs:ro
+      - ./fluent.conf:/fluentd/etc/fluent.conf:ro
+      - fluentd-pos:/var/log/td-agent
+    ports:
+      - "24220:24220"  # Monitoring port
+    restart: unless-stopped
+    networks:
+      - elk-network
+
+volumes:
+  fluentd-pos:
+
+networks:
+  elk-network:
+    external: true
+    name: ${ELK_NETWORK:-elk}

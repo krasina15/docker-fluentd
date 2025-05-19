@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: denis-test-app
+  namespace: default
+  labels:
+    app: test-app
+    who: denis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: test-app
+      who: denis
+  template:
+    metadata:
+      labels:
+        app: test-app
+        who: denis
+    spec:
+      containers:
+      - name: test-app
+        image: busybox:latest
+        command: 
+        - sh
+        - -c
+        - |
+          echo "Starting Denis's test application..."
+          while true; do
+            echo '{"timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)'","level":"info","message":"Hello from Denis app","app":"test-app","who":"denis"}'
+            sleep 5
+          done
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: denis-production-app
+  namespace: default
+  labels:
+    app: production-app
+    who: denis
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: production-app
+      who: denis
+  template:
+    metadata:
+      labels:
+        app: production-app
+        who: denis
+    spec:
+      containers:
+      - name: production-app
+        image: nginx:alpine
+        env:
+        - name: WHO
+          value: denis
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: log-config
+          mountPath: /etc/nginx/conf.d/
+      volumes:
+      - name: log-config
+        configMap:
+          name: nginx-log-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-log-config
+  namespace: default
+data:
+  logging.conf: |
+    # Custom log format for Denis's apps
+    log_format json_log escape=json '{"timestamp":"$time_iso8601",'
+                                    '"level":"info",'
+                                    '"message":"$request",'
+                                    '"status":"$status",'
+                                    '"who":"denis",'
+                                    '"app":"production-app"}';
+    
+    access_log /var/log/nginx/access.log json_log;
+    error_log /var/log/nginx/error.log warn;
+---
+# Example of an app WITHOUT the who=denis label (won't be collected)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: other-app
+  namespace: default
+  labels:
+    app: other-app
+    who: notdenis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: other-app
+      who: notdenis
+  template:
+    metadata:
+      labels:
+        app: other-app
+        who: notdenis
+    spec:
+      containers:
+      - name: other-app
+        image: busybox:latest
+        command: 
+        - sh
+        - -c
+        - |
+          echo "This app won't be collected by Fluentd..."
+          while true; do
+            echo '{"message":"This log should be ignored","who":"notdenis"}'
+            sleep 10
+          done
